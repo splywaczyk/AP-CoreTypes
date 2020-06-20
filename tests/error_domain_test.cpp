@@ -14,9 +14,9 @@ struct ErrorDomainTestImpl : ara::core::ErrorDomain
 
     char const* Name() const noexcept { return ""; }
 
-    char const* Message(CodeType errorCode) const noexcept { return ""; }
+    char const* Message(CodeType /*errorCode*/) const noexcept { return ""; }
 
-    void ThrowAsException(core::ErrorCode const& errorCode) const
+    void ThrowAsException(core::ErrorCode const& /*errorCode*/) const
       noexcept(false)
     {}
 };

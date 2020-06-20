@@ -8,7 +8,7 @@ Core Types defines common classes and functionality used by multiple Functional 
 
 ```sh
 mkdir build && cd build
-meson setup -Db_coverage=true --pkg-config-path .
+meson setup
 ninja
 ```
 
