@@ -4,6 +4,7 @@ srcs = [
     'error_domain_test.cpp',
     'array_test.cpp',
     'map_test.cpp',
+    'vector_test.cpp',
     'utility_test.cpp'
 ]
 

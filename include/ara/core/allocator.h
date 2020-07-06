@@ -1,5 +1,6 @@
 /**
  * Copyright (c) 2020
+ *
  * umlaut Software Development and contributors
  * 
  * SPDX-License-Identifier: MIT
@@ -32,3 +33,4 @@ using AllocatorTraits = std::allocator_traits<Alloc>;
 } // namespace ara::core
 
 #endif // ARA_CORE_ALLOCATOR_H_
+
