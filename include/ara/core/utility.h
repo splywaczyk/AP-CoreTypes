@@ -9,6 +9,8 @@
 
 #include <utility>
 
+#include "ara/core/byte.h"
+
 namespace ara::core {
 /**
  * It is a type that is able to hold a “byte” of the machine.
@@ -16,7 +18,7 @@ namespace ara::core {
  *
  * @req {SWS_CORE_04200}
  */
-using Byte = std::byte;  // TODO: to change with custom implementation
+using Byte = ByteImpl;
 
 /**
  * An instance of this type can be passed to certain constructors of
