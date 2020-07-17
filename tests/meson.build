@@ -2,6 +2,7 @@ subdir('test_runner')
 
 srcs = [
     'error_domain_test.cpp',
+    'core_error_domain_test.cpp',
     'array_test.cpp',
     'map_test.cpp',
     'vector_test.cpp',
@@ -18,7 +19,8 @@ tests_exec = executable(
     dependencies: [
         test_runner_dep,
     ],
-    include_directories : incdir
+    include_directories : incdir,
+    link_with: ap_coretypes_lib
 )
 
 test('tests', tests_exec)

@@ -1,5 +1,5 @@
 /**
- * Copytight (c) 2020
+ * Copyright (c) 2020
  * umlaut Software Development and contributors
  * 
  * SPDX-License-Identifier: MIT
