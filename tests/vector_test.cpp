@@ -9,17 +9,19 @@ TEST_CASE("Constructs an empty vector", "[SWS_CORE], [SWS_CORE_01301]")
     CHECK(vector.size() == 0);
 }
 
-TEST_CASE("Constructs a vector with n value-initialized elements", "[SWS_CORE], [SWS_CORE_01301]")
+TEST_CASE("Constructs a vector with n value-initialized elements",
+          "[SWS_CORE], [SWS_CORE_01301]")
 {
-    std::size_t size = 5;
+    std::size_t            size = 5;
     ara::core::Vector<int> vector(size);
 
     CHECK(vector.size() == size);
 }
 
-TEST_CASE("Constructs a vector with n copies of value", "[SWS_CORE], [SWS_CORE_01301]")
+TEST_CASE("Constructs a vector with n copies of value",
+          "[SWS_CORE], [SWS_CORE_01301]")
 {
-    std::size_t size = 2;
+    std::size_t            size = 2;
     ara::core::Vector<int> vector(size, 10);
 
     CHECK(vector.size() == size);
@@ -27,7 +29,8 @@ TEST_CASE("Constructs a vector with n copies of value", "[SWS_CORE], [SWS_CORE_0
     CHECK(vector[1] == 10);
 }
 
-TEST_CASE("Constructs a vector equal to the range", "[SWS_CORE], [SWS_CORE_01301]")
+TEST_CASE("Constructs a vector equal to the range",
+          "[SWS_CORE], [SWS_CORE_01301]")
 {
     ara::core::Vector<int> vector{1, 2, 3, 4, 5};
 
@@ -50,7 +53,7 @@ TEST_CASE("Vector copies", "[SWS_CORE], [SWS_CORE_01301]")
     CHECK(lvalueVector.at(0) == 1);
     CHECK(lvalueVector.at(4) == 5);
 
-    auto alloc = std::allocator<int>{};
+    auto                   alloc = std::allocator<int>{};
     ara::core::Vector<int> customAllocatorVector(vector, alloc);
     CHECK(customAllocatorVector.size() == 5);
     CHECK(customAllocatorVector.at(0) == 1);
@@ -70,7 +73,8 @@ TEST_CASE("Vector moves", "[SWS_CORE], [SWS_CORE_01301]")
     CHECK(rvalueVector.at(4) == 5);
 
     auto alloc = std::allocator<int>{};
-    ara::core::Vector<int> customAllocatorVector(ara::core::Vector<int>{1, 2, 3, 4, 5}, alloc);
+    ara::core::Vector<int>
+      customAllocatorVector(ara::core::Vector<int>{1, 2, 3, 4, 5}, alloc);
     CHECK(customAllocatorVector.size() == 5);
     CHECK(customAllocatorVector.at(0) == 1);
     CHECK(customAllocatorVector.at(4) == 5);
@@ -78,11 +82,11 @@ TEST_CASE("Vector moves", "[SWS_CORE], [SWS_CORE_01301]")
 
 TEST_CASE("Vector operator=", "[SWS_CORE], [SWS_CORE_01301]")
 {
-    ara::core::Vector<int> vector {1, 2, 3, 4, 5};
+    ara::core::Vector<int> vector{1, 2, 3, 4, 5};
     ara::core::Vector<int> lvalueVector;
     ara::core::Vector<int> rvalueVector;
     ara::core::Vector<int> initListVector;
-    
+
     CHECK(vector.size() == 5);
     CHECK(vector.at(0) == 1);
     CHECK(vector.at(4) == 5);
@@ -189,7 +193,7 @@ TEST_CASE("Vector - resize", "[SWS_CORE], [SWS_CORE_01301]")
     std::size_t size = 3;
     vector.resize(size);
     CHECK(size == vector.size());
-    
+
     size = 10;
     vector.resize(size, 15);
     CHECK(size == vector.size());
@@ -253,12 +257,12 @@ TEST_CASE("Vector - front, back", "[SWS_CORE], [SWS_CORE_01301]")
 TEST_CASE("Vector - data", "[SWS_CORE], [SWS_CORE_01301]")
 {
     ara::core::Vector<int> vector{1, 2, 3, 4, 5};
-    auto data = vector.data();
+    auto                   data = vector.data();
     CHECK(1 == *data);
     CHECK(5 == *(data + 4));
 
     const ara::core::Vector<int> constVector{1, 2, 3, 4, 5};
-    auto constData = constVector.data();
+    auto                         constData = constVector.data();
     CHECK(1 == *constData);
     CHECK(5 == *(constData + 4));
 }
@@ -283,7 +287,10 @@ TEST_CASE("Vector - emplace_back, emplace", "[SWS_CORE], [SWS_CORE_01301]")
 
 TEST_CASE("Vector - push_back, pop_back", "[SWS_CORE], [SWS_CORE_01301]")
 {
-    struct Test {int a;};
+    struct Test
+    {
+        int a;
+    };
 
     ara::core::Vector<Test> vector;
     CHECK(0 == vector.size());
@@ -301,12 +308,12 @@ TEST_CASE("Vector - insert", "[SWS_CORE], [SWS_CORE_01301]")
 {
     ara::core::Vector<int> vector{1, 2, 3, 4, 5};
     CHECK(5 == vector.size());
- 
+
     auto it = vector.begin();
-    it = vector.insert(it, 200);
+    it      = vector.insert(it, 200);
     CHECK(6 == vector.size());
     CHECK(200 == vector.at(0));
- 
+
     std::size_t count = 2;
     vector.insert(it, count, 300);
     CHECK(8 == vector.size());
@@ -321,8 +328,8 @@ TEST_CASE("Vector - insert", "[SWS_CORE], [SWS_CORE_01301]")
     CHECK(300 == vector.at(1));
     CHECK(50 == vector.at(2));
     CHECK(50 == vector.at(3));
- 
-    int arr[] = { 501, 502, 503 };
+
+    int arr[] = {501, 502, 503};
     vector.insert(vector.begin(), arr, arr + 3);
     CHECK(13 == vector.size());
     CHECK(501 == vector.at(0));
@@ -343,11 +350,11 @@ TEST_CASE("Vector - erase", "[SWS_CORE], [SWS_CORE_01301]")
 {
     ara::core::Vector<int> vector{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     CHECK(10 == vector.size());
- 
+
     vector.erase(vector.begin());
     CHECK(9 == vector.size());
     CHECK(1 == vector.at(0));
- 
+
     vector.erase(vector.begin() + 2, vector.begin() + 5);
     CHECK(6 == vector.size());
     CHECK(6 == vector.at(2));
@@ -417,7 +424,7 @@ TEST_CASE("Non member functions - swap", "[SWS_CORE], [SWS_CORE_01396]")
 {
     ara::core::Vector<int> lhs{1, 2, 3, 4, 5};
     ara::core::Vector<int> rhs{6, 7, 8, 9};
-    
+
     CHECK(5 == lhs.size());
     CHECK(1 == lhs.at(0));
     CHECK(4 == rhs.size());

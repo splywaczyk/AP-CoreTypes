@@ -118,7 +118,8 @@ template<
   class = typename std::enable_if<std::is_integral<IntegerType>::value>::type>
 constexpr ByteImpl operator<<(ByteImpl b, IntegerType shift) noexcept
 {
-    return ByteImpl(static_cast<ByteImpl::ByteType>(b) << shift);
+    return ByteImpl(static_cast<ByteImpl::ByteType>(
+      static_cast<ByteImpl::ByteType>(b) << shift));
 }
 
 /**
@@ -150,7 +151,8 @@ template<
   class = typename std::enable_if<std::is_integral<IntegerType>::value>::type>
 constexpr ByteImpl operator>>(ByteImpl b, IntegerType shift) noexcept
 {
-    return ByteImpl(static_cast<ByteImpl::ByteType>(b) >> shift);
+    return ByteImpl(static_cast<ByteImpl::ByteType>(
+      static_cast<ByteImpl::ByteType>(b) >> shift));
 }
 
 /**
