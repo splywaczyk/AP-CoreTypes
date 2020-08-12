@@ -14,6 +14,40 @@
 namespace ara::core
 {
 
+namespace details
+{
+    template <typename T, typename E>
+    class Result;
+
+    template <std::size_t Index, typename... T>
+    struct params {};
+
+    template <std::size_t Index, typename First, typename... Rest>
+    struct params<Index, First, Rest...> : params<Index - 1, Rest...> {};
+
+    template <typename First, typename... Rest>
+    struct params<0, First, Rest...>
+    {
+        using type = First;
+    };
+
+    template <typename... Args>
+    using first_param_t = typename params<0, Args...>::type;
+
+    template <typename T, typename = std::void_t<>>
+    struct is_specialization_of_result : std::false_type {};
+
+    template <typename T>
+    struct is_specialization_of_result
+        <T, std::void_t<Result<typename T::value_type, typename T::error_type>>>
+        : std::conditional_t<std::is_same_v<T, Result<typename T::value_type, typename T::error_type>>, std::true_type, std::false_type>
+    {
+    }; 
+
+    template <bool Condition, typename T = void>
+    using requires = typename std::enable_if<Condition, T>::type;
+} // namespace details
+
 /**
  * @brief This class is a type that contains either a value or an error.
  * 
@@ -39,16 +73,24 @@ class Result final
      */
     using error_type = E;
 
-    /**
-     * @brief Result's value
-     */
-    value_type _value;
-    
-    /**
-     * @brief Result's error
-     */
-    error_type _error;
+    union
+    {
+         /**
+         * @brief Result's error
+         */
+        error_type error_;
+        
+        /**
+         * @brief Result's value
+         */
+        value_type value_;
+    };
 
+    /**
+     * @brief Indicates if value exists
+     */
+    bool hasValue_;
+    
 public:
     /**
      * @brief Construct a new @c Result from the specified value (given as lvalue).
@@ -57,7 +99,7 @@ public:
      * 
      * @req {SWS_CORE_00721}
      */
-    Result(value_type const &t);
+    Result(value_type const &t) : value_ {t}, hasValue_ {true} {}
 
     /**
      * @brief Construct a new @c Result from the specified value (given as rvalue).
@@ -66,7 +108,7 @@ public:
      * 
      * @req {SWS_CORE_00722}
      */
-    Result(value_type const &&t);
+    Result(value_type const &&t) : value_ {t}, hasValue_ {true} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as lvalue).
@@ -75,7 +117,7 @@ public:
      * 
      * @req {SWS_CORE_00723}
      */
-    Result(error_type const &e);
+    Result(error_type const &e) : error_ {e}, hasValue_ {false} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as rvalue).
@@ -84,7 +126,7 @@ public:
      * 
      * @req {SWS_CORE_00724}
      */
-    Result(error_type const &&e);
+    Result(error_type const &&e) : error_ {e}, hasValue_ {false} {}
 
     /**
      * @brief Copy-construct a new @c Result from another instance.
@@ -93,7 +135,17 @@ public:
      * 
      * @req {SWS_CORE_00725}
      */
-    Result(Result const &other);
+    Result(Result const &other)
+    {
+        if ((this->hasValue_ = other.hasValue_))
+        {
+            EmplaceValue(other.value_);
+        }
+        else
+        {
+            EmplaceError(other.error_);
+        }
+    }
 
     /**
      * @brief Move-construct a new @c Result from another instance.
@@ -102,15 +154,35 @@ public:
      * 
      * @req {SWS_CORE_00726}
      */
-    Result(Result const &&other) noexcept(std::is_nothrow_move_constructible<value_type>::value && std::is_nothrow_move_constructible<error_type>::value);
+    Result(Result const &&other) noexcept(std::is_nothrow_move_constructible_v<value_type> && std::is_nothrow_move_constructible_v<error_type>)
+    {
+        if ((this->hasValue_ = other.hasValue_))
+        {
+            EmplaceValue(std::move(other.value_));
+        }
+        else
+        {
+            EmplaceError(std::move(other.error_));
+        }
+    }
 
     /**
      * @brief Destructor.
      * 
      * @req {SWS_CORE_00727}
      */
-    // TODO: This destructor is trivial if std::is_trivially_destructible<T>::value && std::is_trivially_destructible<E>::value is true.
-    ~Result();
+    // FIXME: This destructor is trivial if std::is_trivially_destructible<E>::value is true.
+    ~Result()
+    {
+        if (hasValue_)
+        {
+            value_.~value_type();
+        }
+        else
+        {
+            error_.~error_type();
+        }
+    }
 
     /**
      * @brief Build a new @c Result from the specified value (given as lvalue).
@@ -121,7 +193,10 @@ public:
      * 
      * @req {SWS_CORE_00731}
      */
-    static Result FromValue(value_type const &t);
+    static Result FromValue(value_type const &t)
+    {
+        return Result(t);
+    }
 
     /**
      * @brief Build a new @c Result from the specified value (given as rvalue).
@@ -132,7 +207,10 @@ public:
      * 
      * @req {SWS_CORE_00732}
      */
-    static Result FromValue(value_type const &&t);
+    static Result FromValue(value_type const &&t)
+    {
+        return Result(t);
+    }
 
     /**
      * @brief Build a new @c Result from a value that is constructed in-place from the given arguments.
@@ -144,11 +222,19 @@ public:
      * 
      * @req {SWS_CORE_00733}
      */
-    // TODO: This function shall not participate in overload resolution unless:
-    // std::is_constructible<T, Args&&...>::value is true, and the first type of the expanded parameter pack is not T, and the
-    // first type of the expanded parameter pack is not a specialization of Result
-    template <typename... Args>
-    static Result FromValue(Args &&... args);
+    template <typename... Args,
+              details::requires
+              <
+                  std::is_constructible_v<value_type, Args...> 
+                  && !std::is_same_v<value_type, details::first_param_t<Args...>>
+                  && !details::is_specialization_of_result<details::first_param_t<Args...>>::value
+              > * = nullptr
+             >           
+    static Result FromValue(Args &&... args)
+    {
+        value_type* newValue = ::new (newValue) value_type(std::forward<Args>(args)...);
+        return Result(*newValue);
+    }
 
     /**
      * @brief Build a new @c Result from the specified error (given as lvalue).
@@ -159,7 +245,10 @@ public:
      * 
      * @req {SWS_CORE_00734}
      */
-    static Result FromError(error_type const& e);
+    static Result FromError(error_type const& e)
+    {
+        return Result(e);
+    }
 
     /**
      * @brief Build a new @c Result from the specified error (given as rvalue).
@@ -170,7 +259,10 @@ public:
      * 
      * @req {SWS_CORE_00735}
      */
-    static Result FromError(error_type &&e);
+    static Result FromError(error_type &&e)
+    {
+        return Result(e);
+    }
 
     /**
      * @brief Build a new @c Result from an error that is constructed in-place from the given arguments.
@@ -182,11 +274,19 @@ public:
      * 
      * @req {SWS_CORE_00736}
      */
-    //TODO: This function shall not participate in overload resolution unless:
-    // std::is_constructible<E, Args&&...>::value is true, and the first type of the expanded parameter pack is not E, and the
-    // first type of the expanded parameter pack is not a specialization of Result
-    template <typename... Args>
-    static FromError(Args &&... args);
+    template <typename... Args,
+              details::requires
+                <
+                    std::is_constructible_v<error_type, Args...> 
+                    && !std::is_same_v<error_type, details::first_param_t<Args...>>
+                    && !details::is_specialization_of_result<details::first_param_t<Args...>>::value
+                > * = nullptr
+              >    
+    static Result FromError(Args &&... args)
+    {
+        error_type* error = ::new (error) error_type(std::forward<Args>(args)...);
+        return Result(*error);
+    }
 
     /**
      * @brief Copy-assign another @c Result to this instance.
@@ -197,7 +297,16 @@ public:
      * 
      * @req {SWS_CORE_00741}
      */
-    Result& operator=(Result const &other);
+    Result& operator=(Result const &other)
+    {
+        if (*this == other)
+        {
+            return *this;
+        }
+
+        Swap(other);
+        return *this;
+    }
 
     /**
      * @brief Move-assign another @c Result to this instance.
@@ -209,8 +318,17 @@ public:
      * @req {SWS_CORE_00742}
      */
     Result& operator=(Result &&other)
-        noexcept(std::is_nothrow_move_constructible<value_type>::value && std::is_nothrow_move_assignable<value_type>::value
-                && std::is_nothrow_move_constructible<error_type>::value && std::is_nothrow_move_assignable<error_type>::value);
+        noexcept(std::is_nothrow_move_constructible_v<value_type> && std::is_nothrow_move_assignable_v<value_type>
+                && std::is_nothrow_move_constructible_v<error_type> && std::is_nothrow_move_assignable_v<error_type>)
+    {
+        if (*this == other)
+        {
+            return *this;
+        }
+
+        Swap(std::move(other));
+        return *this;
+    }
 
     /**
      * @brief Put a new value into this instance, constructed in-place from the given arguments.
@@ -221,7 +339,19 @@ public:
      * @req {SWS_CORE_00743}
      */
     template <typename... Args>
-    void EmplaceValue(Args &&... args);
+    void EmplaceValue(Args &&... args)
+    {
+        if (hasValue_)
+        {
+            value_ = value_type(std::forward<Args>(args)...);
+        }
+        else
+        {
+            error_.~error_type();
+            hasValue_ = true;
+            ::new (&value_) value_type(std::forward<Args>(args)...);
+        }
+    }
 
     /**
      * @brief Put a new error into this instance, constructed in-place from the given arguments.
@@ -232,7 +362,19 @@ public:
      * @req {SWS_CORE_00744}
      */
     template <typename... Args>
-    void EmplaceError(Args &&... args);
+    void EmplaceError(Args &&... args)
+    {
+        if (!hasValue_)
+        {
+            error_ = error_type(std::forward<Args>(args)...);
+        }
+        else
+        {
+            value_.~value_type();
+            hasValue_ = false;
+            ::new (&error_) error_type(std::forward<Args>(args)...);
+        }
+    }
 
     /**
      * @brief Exchange the contents of this instance with those of @c other.
@@ -242,8 +384,32 @@ public:
      * @req {SWS_CORE_00745}
      */
     void Swap(Result &other)
-        noexcept(std::is_nothrow_move_constructible<value_type> && std::is_nothrow_move_assignable<value_type>
-                && std::is_nothrow_move_constructible<error_type> && std::is_nothrow_move_assignable<error_type>);
+        noexcept(std::is_nothrow_move_constructible_v<value_type> && std::is_nothrow_move_assignable_v<value_type>
+                && std::is_nothrow_move_constructible_v<error_type> && std::is_nothrow_move_assignable_v<error_type>)
+    {
+        // both have a value
+        if(HasValue() && other.HasValue())
+        {
+            std::swap(this.Value(), other.Value());
+        }
+        // both have an error
+        else if(!HasValue() && !other.HasValue())
+        {
+            std::swap(this.Error(), other.Error());
+        }
+        else if (HasValue() && !other.HasValue())
+        {
+            auto tempValue = std::move(Value());
+            auto tempError = std::move(Error());
+
+            EmplaceError(tempError);
+            other.EmplaceValue(tempValue);
+        }
+        else if (!HasValue() && other.HasValue())
+        {
+            other.Swap(*this);
+        }
+    }
 
     /**
      * @brief Check whether @c *this contains a value.
@@ -252,7 +418,10 @@ public:
      * 
      * @req {SWS_CORE_00751}
      */
-    bool HasValue() const noexcept;
+    bool HasValue() const noexcept
+    {
+        return hasValue_;
+    }
 
     /**
      * @brief Check whether @c *this contains a value.
@@ -261,7 +430,10 @@ public:
      * 
      * @req {SWS_CORE_00752}
      */
-    explicit operator bool() const noexcept;
+    explicit operator bool() const noexcept
+    {
+        return hasValue_;
+    }
 
     /**
      * @brief Access the contained value.
@@ -271,7 +443,15 @@ public:
      * 
      * @req {SWS_CORE_00753}
      */
-    value_type const& operator *() const&;
+    value_type const& operator *() const&
+    {
+        if (!hasValue_)
+        {
+            // TODO: Add some warning
+        }
+
+        return value_;
+    }
 
     /**
      * @brief Access the contained value.
@@ -281,7 +461,15 @@ public:
      * 
      * @req {SWS_CORE_00759}
      */
-    value_type&& operator *() &&;
+    value_type&& operator *() &&
+    {
+        if (!hasValue_)
+        {
+            // TODO: Add some warning
+        }
+
+        return value_;
+    }
 
     /**
      * @brief Access the contained value.
@@ -291,7 +479,15 @@ public:
      * 
      * @req {SWS_CORE_00754}
      */
-    value_type const* operator ->() const;
+    value_type const* operator ->() const
+    {
+        if (!hasValue_)
+        {
+            // TODO: Add some warning
+        }
+
+        return &value_;
+    }
 
     /**
      * @brief Access the contained value.
@@ -301,7 +497,15 @@ public:
      * 
      * @req {SWS_CORE_00755}
      */
-    value_type const& Value() const &;
+    value_type const& Value() const &
+    {
+        if (!hasValue_)
+        {
+            // TODO: Add some warning
+        }
+        
+        return value_;
+    }
 
     /**
      * @brief Access the contained value.
@@ -311,7 +515,15 @@ public:
      * 
      * @req {SWS_CORE_00756}
      */
-    value_type&& Value() &&;
+    value_type&& Value() &&
+    {
+        if (!hasValue_)
+        {
+            // TODO: Add some warning
+        }
+        
+        return value_;
+    }
 
     /**
      * @brief Access the contained error.
@@ -321,7 +533,15 @@ public:
      * 
      * @req {SWS_CORE_00757}
      */
-    error_type const& Error() const &; 
+    error_type const& Error() const &
+    {
+        if (hasValue_)
+        {
+            // TODO: Add some warning
+        }
+        
+        return error_;
+    }
 
     /**
      * @brief Access the contained error.
@@ -331,7 +551,15 @@ public:
      * 
      * @req {SWS_CORE_00758}
      */
-    error_type&& Error() &&; 
+    error_type&& Error() && 
+    {
+        if (hasValue_)
+        {
+            // TODO: Add some warning
+        }
+        
+        return error_;
+    }
 
     /**
      * @brief Return the contained value or the given default value.
@@ -345,7 +573,15 @@ public:
      * @req {SWS_CORE_00761}
      */
     template <typename U>
-    value_type ValueOr(U &&defaultValue)  const &;
+    value_type ValueOr(U &&defaultValue)  const &
+    {
+        if (hasValue_)
+        {
+            return value_;
+        }
+
+        return static_cast<value_type>(defaultValue);
+    }
 
     /**
      * @brief Return the contained value or the given default value.
@@ -359,7 +595,15 @@ public:
      * @req {SWS_CORE_00762}
      */
     template <typename U>
-    value_type ValueOr(U &&defaultValue) &&;
+    value_type ValueOr(U &&defaultValue) &&
+    {
+        if (hasValue_)
+        {
+            return value_;
+        }
+
+        return static_cast<value_type>(defaultValue);
+    }
 
     /**
      * @brief Return the contained error or the given default error.
@@ -373,7 +617,15 @@ public:
      * @req {SWS_CORE_00763}
      */
     template <typename G>
-    error_type ErrorOr(G &&defaultError) const;
+    error_type ErrorOr(G &&defaultError) const
+    {
+        if (!hasValue_)
+        {
+            return error_;
+        }
+
+        return static_cast<error_type>(defaultError);
+    }
 
     /**
      * @brief Return whether this instance contains the given error.
@@ -386,8 +638,18 @@ public:
      *  
      * @req {SWS_CORE_00765}
      */
-    bool CheckError(G &&error) const;
+    template <typename G>
+    bool CheckError(G &&error) const
+    {
+        if (hasValue_)
+        {
+            return false;
+        }
 
+        return static_cast<error_type>(error) == error_.Value() ? true : false;
+    }
+
+#if __cpp_exceptions == 199711
     /**
      * @brief Return the contained value or throw an exception.
      * This function does not participate in overload resolution when the compiler toolchain does not support C++ exceptions.
@@ -397,8 +659,18 @@ public:
      *  
      * @req {SWS_CORE_00766}
      */
-    value_type const& ValueOrThrow() const &noexcept(false);
+    value_type const& ValueOrThrow() const &noexcept(false)
+    {
+        if (hasValue_)
+        {
+            return value_;
+        }
 
+        error_.ThrowAsException();
+    }
+#endif // __cpp_exceptions == 199711
+
+#if __cpp_exceptions == 199711
     /**
      * @brief Return the contained value or throw an exception.
      * This function does not participate in overload resolution when the compiler toolchain does not support C++ exceptions.
@@ -408,7 +680,16 @@ public:
      *  
      * @req {SWS_CORE_00769}
      */
-    value_type&& ValueOrThrow() const &&noexcept(false);
+    value_type&& ValueOrThrow() const &&noexcept(false)
+    {
+        if (hasValue_)
+        {
+            return value_;
+        }
+
+        error_.ThrowAsException();
+    }
+#endif // __cpp_exceptions == 199711
 
     /**
      * @brief Return the contained value or return the result of a function call.
@@ -424,19 +705,21 @@ public:
      * @req {SWS_CORE_00767}
      */
     template <typename F>
-    value_type Resolve(F &&f) const;
+    value_type Resolve(F &&f) const
+    {
+        if (hasValue_)
+        {
+            return value_;
+        }
 
-    // TODO: Fix description and method declaration
+        return f(error_);
+    }
+
     /**
      * @brief Apply the given Callable to the value of this instance, and return a new @c Result with the result of the call.
-     * The Callable is expected to be compatible to one of these two interfaces:
-     * <tt> Result<XXX, E> f(T const&); </tt>
-     * <tt> XXX f(T const&); </tt>
-     * Meaning that the Callable either returns a @c Result<XXX> or a @c XXX directly,
-     * where @c XXX can be any type that is suitable for use by class @c Result.
-     * The return type of this function is @c decltype(f(Value())) for a template argument @c F that returns a @c Result type,
-     * and it is @c Result<decltype(f(Value())),E> for a template argument @c F that does not return a @c Result type.
-     * If this instance does not contain a value, a new @c Result<XXX,E> is still created and returned, 
+     * The Callable is expected to be compatible to:
+     * <tt> Result<value_type, error_type> f(value_type const&); </tt>
+     * If this instance does not contain a value, a new @c Result<value_type,error_type> is still created and returned, 
      * with the original error contents of this instance being copied into the new instance.
      * 
      * @tparam F the type of the Callable f
@@ -446,12 +729,46 @@ public:
      *  
      * @req {SWS_CORE_00768}
      */
-    template <typename F>
-    auto Bind(F &&f) const->std::conditional<
-                                std::is_same<decltype(f(_value)), ara::core::Result>::value,
-                                             Result<decltype(f(_value)), error_type>,
-                                             decltype(f(_value))>
-                                            >;
+    template <typename F,
+              details::requires<std::is_same_v<Result, decltype(F(value_))>> * = nullptr
+             >
+    Result Bind(F &&f)
+    {
+        if (hasValue_)
+        {
+            return f(value_);
+        }
+
+        return Result(error_);
+    }
+
+    /**
+     * @brief Apply the given Callable to the value of this instance, and return a new @c Result with the result of the call.
+     * The Callable is expected to be compatible to:
+     * <tt> value_type f(value_type const&); </tt>
+     * The return type of this function is @c Result<f(Value()),error_type>.
+     * If this instance does not contain a value, a new @c Result<value_type,error_type> is still created and returned, 
+     * with the original error contents of this instance being copied into the new instance.
+     * 
+     * @tparam F the type of the Callable f
+     * @param f the Callable
+     * 
+     * @return A new @c Result instance of the possibly transformed type
+     *  
+     * @req {SWS_CORE_00768}
+     */
+    template <typename F,
+              details::requires<std::is_same_v<value_type, decltype(F(value_))>> * = nullptr
+             >
+    Result Bind(F &&f)
+    {
+        if (hasValue_)
+        {
+            return Result(f(value_));
+        }
+
+        return Result(error_);
+    }
 };
 
 /**
@@ -475,16 +792,16 @@ class Result<void, E> final
      * @req {SWS_CORE_00812}
      */
     using error_type = E;
-
-    /**
-     * @brief Result's value
-     */
-    value_type _value;
     
     /**
      * @brief Result's error
      */
-    error_type _error;
+    error_type error_;
+
+    /**
+     * @brief Indicates if value exists
+     */
+    bool hasValue_;
 
 public:
     /**
@@ -528,7 +845,7 @@ public:
      *  
      * @req {SWS_CORE_00826}
      */
-    Result (Result &&other) noexcept(std::is_nothrow_move_constructible<error_type>::value);
+    Result (Result &&other) noexcept(std::is_nothrow_move_constructible_v<error_type>);
 
     /**
      * @brief Destructor.
@@ -579,11 +896,19 @@ public:
      *  
      * @req {SWS_CORE_00836}
      */
-    // TODO: This function shall not participate in overload resolution unless: std::is_constructible<E,Args&&...>::value 
-    // is true, and the first type of the expanded parameter pack is not E, and the
-    // first type of the expanded parameter pack is not a specialization of Result
-    template <typename... Args>
-    static Result FromError (Args &&... args);
+    template <typename... Args,
+              details::requires
+              <
+                  std::is_constructible_v<error_type, Args...> 
+                  && !std::is_same_v<error_type, details::first_param_t<Args...>>
+                  && !details::is_specialization_of_result<details::first_param_t<Args...>>::value
+              > * = nullptr
+             >    
+    static Result FromError(Args &&... args)
+    {
+        error_type* error = ::new (error) error_type(std::forward<Args>(args)...);
+        return Result(*error);
+    }
 
     /**
      * @brief Copy-assign another @c Result to this instance.
@@ -594,7 +919,7 @@ public:
      *  
      * @req {SWS_CORE_00841}
      */
-    Result& operator= (Result const &other);
+    Result& operator=(Result const &other);
 
     /**
      * @brief Move-assign another  @c Result to this instance.
@@ -606,7 +931,7 @@ public:
      * @req {SWS_CORE_00842}
      */
     Result& operator=(Result &&other)
-        noexcept(std::is_nothrow_move_constructible<error_type>::value && std::is_nothrow_move_assignable<error_type>::value);
+        noexcept(std::is_nothrow_move_constructible_v<error_type> && std::is_nothrow_move_assignable_v<error_type>);
 
     /**
      * @brief Put a new value into this instance, constructed in-place from the given arguments.
@@ -638,7 +963,7 @@ public:
      * @req {SWS_CORE_00845}
      */
     void Swap (Result &other)
-        noexcept(std::is_nothrow_move_constructible<error_type>::value && std::is_nothrow_move_assignable<error_type>::value);
+        noexcept(std::is_nothrow_move_constructible_v<error_type> && std::is_nothrow_move_assignable_v<error_type>);
 
     /**
      * @brief Check whether @c *this contains a value.
@@ -736,6 +1061,8 @@ public:
     template <typename G>
     bool CheckError (G &&error) const;
 
+#if __cpp_exceptions == 199711
+// This function does not participate in overload resolution when the compiler toolchain does not support C++ exceptions.
     /**
      * @brief Return the contained value or throw an exception.
      * 
@@ -744,6 +1071,7 @@ public:
      * @req {SWS_CORE_00866}
      */
     void ValueOrThrow () const noexcept(false);
+#endif // __cpp_exceptions == 199711
 
     /**
      * @brief Do nothing or call a function.
@@ -773,7 +1101,15 @@ public:
  * @req {SWS_CORE_00780}
  */
 template <typename T, typename E>
-bool operator==(Result<T, E> const &lhs, Result<T, E> const &rhs);
+bool operator==(Result<T, E> const &lhs, Result<T, E> const &rhs)
+{
+    if (lhs.HasValue() && rhs.HasValue())
+    {
+        return lhs.Value() == rhs.Value();
+    }
+
+    return false;
+}
 
 /**
  * @brief Compare two @c Result instances for inequality.
@@ -788,7 +1124,10 @@ bool operator==(Result<T, E> const &lhs, Result<T, E> const &rhs);
  * @req {SWS_CORE_00781}
  */
 template <typename T, typename E>
-bool operator!=(Result<T, E> const &lhs, Result<T, E> const &rhs) { !(lhs == rhs); }
+bool operator!=(Result<T, E> const &lhs, Result<T, E> const &rhs)
+{
+    return !(lhs == rhs);
+}
 
 /**
  * @brief Compare a @c Result instance for equality to a value.
@@ -803,7 +1142,15 @@ bool operator!=(Result<T, E> const &lhs, Result<T, E> const &rhs) { !(lhs == rhs
  * @req {SWS_CORE_00782}
  */
 template <typename T, typename E>
-bool operator==(Result<T, E> const &lhs, T const &rhs);
+bool operator==(Result<T, E> const &lhs, T const &rhs)
+{
+    if (lhs.HasValue())
+    {
+        return lhs.Value() == rhs;
+    }
+
+    return false;
+}
 
 /**
  * @brief Compare a @c Result instance for equality to a value.
@@ -818,7 +1165,10 @@ bool operator==(Result<T, E> const &lhs, T const &rhs);
  * @req {SWS_CORE_00783}
  */
 template <typename T, typename E>
-bool operator==(T const &lhs, Result<T, E> const &rhs);
+bool operator==(T const &lhs, Result<T, E> const &rhs)
+{
+    return rhs == lhs;
+}
 
 /**
  * @brief Compare a @c Result instance for inequality to a value.
@@ -833,7 +1183,10 @@ bool operator==(T const &lhs, Result<T, E> const &rhs);
  * @req {SWS_CORE_00784}
  */
 template <typename T, typename E>
-bool operator!=(Result<T, E> const &lhs, T const &rhs) { !(lhs == rhs); }
+bool operator!=(Result<T, E> const &lhs, T const &rhs)
+{
+    return !(lhs == rhs);
+}
 
 /**
  * @brief Compare a @c Result instance for inequality to a value.
@@ -848,7 +1201,10 @@ bool operator!=(Result<T, E> const &lhs, T const &rhs) { !(lhs == rhs); }
  * @req {SWS_CORE_00785}
  */
 template <typename T, typename E>
-bool operator!=(T const &lhs, Result<T, E> const &rhs) { !(lhs == rhs); }
+bool operator!=(T const &lhs, Result<T, E> const &rhs)
+{
+    return !(rhs == lhs);
+}
 
 /**
  * @brief Compare a @c Result instance for equality to an error.
@@ -863,7 +1219,15 @@ bool operator!=(T const &lhs, Result<T, E> const &rhs) { !(lhs == rhs); }
  * @req {SWS_CORE_00786}
  */
 template <typename T, typename E>
-bool operator==(Result<T, E> const &lhs, E const &rhs);
+bool operator==(Result<T, E> const &lhs, E const &rhs)
+{
+    if (!lhs.HasValue())
+    {
+        return lhs.Error() == rhs;
+    }
+
+    return false;
+}
 
 /**
  * @brief Compare a @c Result instance for equality to an error.
@@ -878,7 +1242,10 @@ bool operator==(Result<T, E> const &lhs, E const &rhs);
  * @req {SWS_CORE_00787}
  */
 template <typename T, typename E>
-bool operator==(E const &lhs, Result<T, E> const &rhs);
+bool operator==(E const &lhs, Result<T, E> const &rhs)
+{
+    return rhs == lhs;
+}
 
 /**
  * @brief Compare a @c Result instance for inequality to an error.
@@ -893,7 +1260,10 @@ bool operator==(E const &lhs, Result<T, E> const &rhs);
  * @req {SWS_CORE_00788}
  */
 template <typename T, typename E>
-bool operator!=(Result<T, E> const &lhs, E const &rhs) { !(lhs == rhs); }
+bool operator!=(Result<T, E> const &lhs, E const &rhs)
+{
+    return !(lhs == rhs);
+}
 
 /**
  * @brief Compare a @c Result instance for inequality to an error.
@@ -908,7 +1278,10 @@ bool operator!=(Result<T, E> const &lhs, E const &rhs) { !(lhs == rhs); }
  * @req {SWS_CORE_00789}
  */
 template <typename T, typename E>
-bool operator!=(E const &lhs, Result<T, E> const &rhs) { !(lhs == rhs); }
+bool operator!=(E const &lhs, Result<T, E> const &rhs)
+{
+   return !(rhs == lhs);
+}
 
 /**
  * @brief Swap the contents of the two given arguments.
@@ -919,7 +1292,10 @@ bool operator!=(E const &lhs, Result<T, E> const &rhs) { !(lhs == rhs); }
  * @req {SWS_CORE_00796}
  */
 template <typename T, typename E>
-void swap(Result<T, E> &lhs, Result<T, E> &rhs) noexcept(noexcept(lhs.Swap(rhs)));
+void swap(Result<T, E> &lhs, Result<T, E> &rhs) noexcept(noexcept(lhs.Swap(rhs)))
+{
+    lhs.Swap(rhs);
+}
 
 } // namespace ara::core
 
