@@ -390,12 +390,12 @@ template<typename T, typename E = ErrorCode> class Result final
         // both have a value
         if (HasValue() && other.HasValue())
         {
-            std::swap(this.Value(), other.Value());
+            std::swap(this->Value(), other.Value());
         }
         // both have an error
         else if (! HasValue() && ! other.HasValue())
         {
-            std::swap(this.Error(), other.Error());
+            std::swap(this->Error(), other.Error());
         }
         else if (HasValue() && ! other.HasValue())
         {
