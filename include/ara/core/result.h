@@ -45,7 +45,7 @@ namespace details
     }; 
 
     template <bool Condition, typename T = void>
-    using requires = typename std::enable_if<Condition, T>::type;
+    using requires_ = typename std::enable_if<Condition, T>::type;
 } // namespace details
 
 /**
@@ -137,7 +137,8 @@ public:
      */
     Result(Result const &other)
     {
-        if ((this->hasValue_ = other.hasValue_))
+        this->hasValue_ = other.hasValue_;
+        if (this->hasValue_)
         {
             EmplaceValue(other.value_);
         }
@@ -156,7 +157,8 @@ public:
      */
     Result(Result const &&other) noexcept(std::is_nothrow_move_constructible_v<value_type> && std::is_nothrow_move_constructible_v<error_type>)
     {
-        if ((this->hasValue_ = other.hasValue_))
+        this->hasValue_ = other.hasValue_;
+        if (this->hasValue_)
         {
             EmplaceValue(std::move(other.value_));
         }
@@ -223,7 +225,7 @@ public:
      * @req {SWS_CORE_00733}
      */
     template <typename... Args,
-              details::requires
+              details::requires_
               <
                   std::is_constructible_v<value_type, Args...> 
                   && !std::is_same_v<value_type, details::first_param_t<Args...>>
@@ -275,7 +277,7 @@ public:
      * @req {SWS_CORE_00736}
      */
     template <typename... Args,
-              details::requires
+              details::requires_
                 <
                     std::is_constructible_v<error_type, Args...> 
                     && !std::is_same_v<error_type, details::first_param_t<Args...>>
@@ -730,7 +732,7 @@ public:
      * @req {SWS_CORE_00768}
      */
     template <typename F,
-              details::requires<std::is_same_v<Result, decltype(F(value_))>> * = nullptr
+              details::requires_<std::is_same_v<Result, decltype(F(value_))>> * = nullptr
              >
     Result Bind(F &&f)
     {
@@ -758,7 +760,7 @@ public:
      * @req {SWS_CORE_00768}
      */
     template <typename F,
-              details::requires<std::is_same_v<value_type, decltype(F(value_))>> * = nullptr
+              details::requires_<std::is_same_v<value_type, decltype(F(value_))>> * = nullptr
              >
     Result Bind(F &&f)
     {
@@ -897,7 +899,7 @@ public:
      * @req {SWS_CORE_00836}
      */
     template <typename... Args,
-              details::requires
+              details::requires_
               <
                   std::is_constructible_v<error_type, Args...> 
                   && !std::is_same_v<error_type, details::first_param_t<Args...>>
