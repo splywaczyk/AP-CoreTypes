@@ -504,7 +504,7 @@ TEST_CASE(
   "Specialization for value_type=void: Constructs and destructs a Result with void value",
   "[SWS_CORE], [SWS_CORE_00801], [SWS_CORE_00825]")
 {
-    ara::core::Result<void, ErrorTest> result;
+    ara::core::Result<void> result;
 
     CHECK(result.HasValue());
 }
