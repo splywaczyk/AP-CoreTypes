@@ -976,7 +976,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00843}
      */
-    template<typename... Args> void EmplaceValue(Args&&... args) noexcept
+    template<typename... Args> void EmplaceValue(Args&&...) noexcept
     {
         if (! hasValue_)
         {

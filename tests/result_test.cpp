@@ -174,10 +174,6 @@ TEST_CASE("Copy-assign", "[SWS_CORE], [SWS_CORE_00741]")
     resultWithError2 = resultWithValue2;
     CHECK(resultWithError2.HasValue());
     CHECK(resultWithError2.Value().getIntVal() == 20);
-
-    // self assignment
-    resultWithValue1 = resultWithValue1;
-    CHECK(resultWithValue1.Value().getIntVal() == 40);
 }
 
 TEST_CASE("Move-assign", "[SWS_CORE], [SWS_CORE_00742]")
@@ -217,10 +213,6 @@ TEST_CASE("Move-assign", "[SWS_CORE], [SWS_CORE_00742]")
       ara::core::Result<ValueTest, ErrorTest>::FromValue(ValueTest(60));
     CHECK(resultWithError1.HasValue());
     CHECK(resultWithError1.Value().getIntVal() == 60);
-
-    // self assignment
-    resultWithValue1 = resultWithValue1;
-    CHECK(resultWithValue1.Value().getIntVal() == 50);
 }
 
 TEST_CASE("EmplaceValue method", "[SWS_CORE], [SWS_CORE_00743]")
