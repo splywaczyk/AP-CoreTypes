@@ -1106,7 +1106,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00861}
      */
-    template<typename U> void ValueOr(U&&) const{ return; }
+    template<typename U> void ValueOr(U&&) const { return; }
 
     /**
      * @brief Return the contained error or the given default error.
