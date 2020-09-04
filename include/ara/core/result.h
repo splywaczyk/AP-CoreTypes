@@ -842,7 +842,7 @@ template<typename E> class Result<void, E> final
     // FIXME: This destructor is trivial if std::is_trivially_destructible<E>::value is true.
     ~Result()
     {
-        if (hasValue_)
+        if (! hasValue_)
         {
             error_.~error_type();
         }
