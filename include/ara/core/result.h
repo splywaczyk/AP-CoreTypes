@@ -9,7 +9,10 @@
 #define ARA_CORE_RESULT_H_
 
 #include "ara/core/error_code.h"
+
+// TODO: This should be changed to "ara/core/variant.h"
 #include <type_traits>
+#include <variant>
 
 namespace ara::core {
 
@@ -78,23 +81,8 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     using error_type = E;
 
-    union {
-        /**
-         * @brief Result's error
-         */
-        error_type error_;
-
-        /**
-         * @brief Result's value
-         */
-        value_type value_;
-    };
-
-    /**
-     * @brief Indicates if value exists
-     */
-    bool hasValue_;
-
+    // TODO: This should be changed to ara::core::variant
+    std::variant<value_type, error_type> result_;
 
  public:
     /**
@@ -105,7 +93,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00721}
      */
-    Result(value_type const& t) : value_{t}, hasValue_{true} {}
+    Result(value_type const& t) : result_{t} {}
 
     /**
      * @brief Construct a new @c Result from the specified value (given as
@@ -115,7 +103,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00722}
      */
-    Result(value_type const&& t) : value_{t}, hasValue_{true} {}
+    Result(value_type const&& t) : result_{t} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as
@@ -125,7 +113,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00723}
      */
-    Result(error_type const& e) : error_{e}, hasValue_{false} {}
+    Result(error_type const& e) : result_{e} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as
@@ -135,7 +123,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00724}
      */
-    Result(error_type const&& e) : error_{e}, hasValue_{false} {}
+    Result(error_type&& e) : result_{e} {}
 
     /**
      * @brief Copy-construct a new @c Result from another instance.
@@ -144,18 +132,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00725}
      */
-    Result(Result const& other)
-    {
-        this->hasValue_ = other.hasValue_;
-        if (this->hasValue_)
-        {
-            details::construct<value_type>(&value_, other.value_);
-        }
-        else
-        {
-            details::construct<error_type>(&error_, other.error_);
-        }
-    }
+    Result(Result const& other) : result_{other.result_} {}
 
     /**
      * @brief Move-construct a new @c Result from another instance.
@@ -164,38 +141,18 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00726}
      */
-    Result(Result const&& other) noexcept(
+    Result(Result&& other) noexcept(
       std::is_nothrow_move_constructible_v<value_type>&&
         std::is_nothrow_move_constructible_v<error_type>)
-    {
-        this->hasValue_ = other.hasValue_;
-        if (this->hasValue_)
-        {
-            details::construct<value_type>(&value_, other.value_);
-        }
-        else
-        {
-            details::construct<error_type>(&error_, other.error_);
-        }
-    }
+      : result_{std::move(other.result_)}
+    {}
 
     /**
      * @brief Destructor.
      *
      * @req {SWS_CORE_00727}
      */
-    // FIXME: This destructor is trivial if std::is_trivially_destructible<E>::value is true.
-    ~Result()
-    {
-        if (hasValue_)
-        {
-            value_.~value_type();
-        }
-        else
-        {
-            error_.~error_type();
-        }
-    }
+    ~Result() = default;
 
     /**
      * @brief Build a new @c Result from the specified value (given as lvalue).
@@ -298,29 +255,7 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     Result& operator=(Result const& other)
     {
-        if (this != &other)
-        {
-            if (hasValue_ && other.hasValue_)
-            {
-                this->value_ = other.value_;
-            }
-            else if (! hasValue_ && ! other.hasValue_)
-            {
-                this->error_ = other.error_;
-            }
-            else if (hasValue_ && ! other.hasValue_)
-            {
-                this->hasValue_ = false;
-                this->value_.~value_type();
-                details::construct<error_type>(&error_, other.error_);
-            }
-            else if (! hasValue_ && other.hasValue_)
-            {
-                this->hasValue_ = true;
-                this->error_.~error_type();
-                details::construct<value_type>(&value_, other.value_);
-            }
-        }
+        this->result_ = other.result_;
         return *this;
     }
 
@@ -339,31 +274,7 @@ template<typename T, typename E = ErrorCode> class Result final
             std::is_nothrow_move_constructible_v<error_type>&&
             std::is_nothrow_move_assignable_v<error_type>)
     {
-        if (this != &other)
-        {
-            if (hasValue_ && other.hasValue_)
-            {
-                this->value_ = std::move(other.value_);
-            }
-            else if (! hasValue_ && ! other.hasValue_)
-            {
-                this->error_ = std::move(other.error_);
-            }
-            else if (hasValue_ && ! other.hasValue_)
-            {
-                this->hasValue_ = false;
-                this->value_.~value_type();
-                details::construct<error_type>(&error_,
-                                               std::move(other.error_));
-            }
-            else if (! hasValue_ && other.hasValue_)
-            {
-                this->hasValue_ = true;
-                this->error_.~error_type();
-                details::construct<value_type>(&value_,
-                                               std::move(other.value_));
-            }
-        }
+        this->result_ = std::move(other.result_);
         return *this;
     }
 
@@ -378,17 +289,8 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename... Args> void EmplaceValue(Args&&... args)
     {
-        if (hasValue_)
-        {
-            value_ = value_type(std::forward<Args>(args)...);
-        }
-        else
-        {
-            error_.~error_type();
-            hasValue_ = true;
-            details::construct<value_type>(&value_,
-                                           std::forward<Args>(args)...);
-        }
+        result_.template emplace<value_type>(
+          value_type(std::forward<Args>(args)...));
     }
 
     /**
@@ -402,17 +304,8 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename... Args> void EmplaceError(Args&&... args)
     {
-        if (! hasValue_)
-        {
-            error_ = error_type(std::forward<Args>(args)...);
-        }
-        else
-        {
-            value_.~value_type();
-            hasValue_ = false;
-            details::construct<error_type>(&error_,
-                                           std::forward<Args>(args)...);
-        }
+        result_.template emplace<error_type>(
+          error_type(std::forward<Args>(args)...));
     }
 
     /**
@@ -428,24 +321,7 @@ template<typename T, typename E = ErrorCode> class Result final
             std::is_nothrow_move_constructible_v<error_type>&&
             std::is_nothrow_move_assignable_v<error_type>)
     {
-        if (hasValue_ && other.hasValue_)
-        {
-            std::swap(this->value_, other.value_);
-        }
-        else if (! hasValue_ && ! other.hasValue_)
-        {
-            std::swap(this->error_, other.error_);
-        }
-        else if (hasValue_ && ! other.hasValue_)
-        {
-            auto tempOther = other;
-            other          = *this;
-            *this          = tempOther;
-        }
-        else if (! hasValue_ && other.hasValue_)
-        {
-            other.Swap(*this);
-        }
+        this->result_.swap(other.result_);
     }
 
     /**
@@ -455,7 +331,10 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00751}
      */
-    bool HasValue() const noexcept { return hasValue_; }
+    bool HasValue() const noexcept
+    {
+        return std::holds_alternative<value_type>(result_);
+    }
 
     /**
      * @brief Check whether @c *this contains a value.
@@ -464,7 +343,10 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00752}
      */
-    explicit operator bool() const noexcept { return hasValue_; }
+    explicit operator bool() const noexcept
+    {
+        return std::holds_alternative<value_type>(result_);
+    }
 
     /**
      * @brief Access the contained value.
@@ -475,7 +357,10 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00753}
      */
-    value_type const& operator*() const& { return value_; }
+    value_type const& operator*() const&
+    {
+        return std::get<value_type>(result_);
+    }
 
     /**
      * @brief Access the contained value.
@@ -486,7 +371,10 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00759}
      */
-    value_type&& operator*() && { return std::move(value_); }
+    value_type&& operator*() &&
+    {
+        return std::move(std::get<value_type>(result_));
+    }
 
     /**
      * @brief Access the contained value.
@@ -497,7 +385,10 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00754}
      */
-    value_type const* operator->() const { return &value_; }
+    value_type const* operator->() const
+    {
+        return &std::get<value_type>(result_);
+    }
 
     /**
      * @brief Access the contained value.
@@ -508,7 +399,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00755}
      */
-    value_type const& Value() const& { return value_; }
+    value_type const& Value() const& { return std::get<value_type>(result_); }
 
     /**
      * @brief Access the contained value.
@@ -519,7 +410,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00756}
      */
-    value_type&& Value() && { return std::move(value_); }
+    value_type&& Value() && { return std::move(std::get<value_type>(result_)); }
 
     /**
      * @brief Access the contained error.
@@ -530,7 +421,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00757}
      */
-    error_type const& Error() const& { return error_; }
+    error_type const& Error() const& { return std::get<error_type>(result_); }
 
     /**
      * @brief Access the contained error.
@@ -541,7 +432,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00758}
      */
-    error_type&& Error() && { return std::move(error_); }
+    error_type&& Error() && { return std::move(std::get<error_type>(result_)); }
 
     /**
      * @brief Return the contained value or the given default value.
@@ -557,9 +448,9 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename U> value_type ValueOr(U&& defaultValue) const&
     {
-        if (hasValue_)
+        if (HasValue())
         {
-            return value_;
+            return std::get<value_type>(result_);
         }
 
         return static_cast<value_type>(defaultValue);
@@ -579,9 +470,9 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename U> value_type ValueOr(U&& defaultValue) &&
     {
-        if (hasValue_)
+        if (HasValue())
         {
-            return value_;
+            return std::get<value_type>(result_);
         }
 
         return static_cast<value_type>(defaultValue);
@@ -601,9 +492,9 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename G> error_type ErrorOr(G&& defaultError) const
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            return error_;
+            return std::get<error_type>(result_);
         }
 
         return static_cast<error_type>(defaultError);
@@ -624,12 +515,14 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename G> bool CheckError(G&& error) const
     {
-        if (hasValue_)
+        if (HasValue())
         {
             return false;
         }
 
-        return static_cast<error_type>(error) == error_ ? true : false;
+        return static_cast<error_type>(error) == std::get<error_type>(result_)
+                 ? true
+                 : false;
     }
 
 #if __cpp_exceptions == 199711
@@ -645,11 +538,11 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     value_type const& ValueOrThrow() const& noexcept(false)
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            error_.ThrowAsException();
+            std::get<error_type>(result_).ThrowAsException();
         }
-        return value_;
+        return std::get<value_type>(result_);
     }
 #endif  // __cpp_exceptions == 199711
 
@@ -666,11 +559,11 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     value_type&& ValueOrThrow() && noexcept(false)
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            error_.ThrowAsException();
+            std::get<error_type>(result_).ThrowAsException();
         }
-        return std::move(value_);
+        return std::move(std::get<value_type>(result_));
     }
 #endif  // __cpp_exceptions == 199711
 
@@ -691,12 +584,12 @@ template<typename T, typename E = ErrorCode> class Result final
      */
     template<typename F> value_type Resolve(F&& f) const
     {
-        if (hasValue_)
+        if (HasValue())
         {
-            return value_;
+            return std::get<value_type>(result_);
         }
 
-        return f(error_);
+        return f(std::get<error_type>(result_));
     }
 
     /**
@@ -724,18 +617,23 @@ template<typename T, typename E = ErrorCode> class Result final
 
     template<typename F> Result Bind(F&& f)
     {
-        if (hasValue_)
+        if (HasValue())
         {
-            if (typeid(value_) == typeid(f(value_)))
+            auto value = std::get<value_type>(result_);
+            if (typeid(value) == typeid(f(value)))
             {
-                return Result(f(value_));
+                return Result(f(value));
             }
-            else if (typeid(*this) == typeid(f(value_)))
+            else if (typeid(*this) == typeid(f(value)))
             {
-                return f(value_);
+                return f(value);
+            }
+            else
+            {
+                // nothing to do
             }
         }
-        return Result(error_);
+        return Result(std::get<error_type>(result_));
     }
 };
 
@@ -761,17 +659,12 @@ template<typename E> class Result<void, E> final
      */
     using error_type = E;
 
-    union {
-        /**
-         * @brief Result's error
-         */
-        error_type error_;
-    };
+    // used to initialize Result with "void" value
+    struct no_error_type
+    {};
 
-    /**
-     * @brief Indicates if value exists
-     */
-    bool hasValue_;
+    // TODO: This should be changed to ara::core::variant
+    std::variant<error_type, no_error_type> result_;
 
  public:
     /**
@@ -779,7 +672,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00821}
      */
-    Result() noexcept : hasValue_{true} {}
+    Result() noexcept : result_{no_error_type()} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as
@@ -789,7 +682,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00823}
      */
-    explicit Result(error_type const& e) : error_{e}, hasValue_{false} {}
+    explicit Result(error_type const& e) : result_{e} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as
@@ -799,7 +692,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00824}
      */
-    explicit Result(error_type&& e) : error_{e}, hasValue_{false} {}
+    explicit Result(error_type&& e) : result_{e} {}
 
     /**
      * @brief Copy-construct a new @c Result from another instance.
@@ -808,14 +701,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00825}
      */
-    Result(Result const& other)
-    {
-        this->hasValue_ = other.hasValue_;
-        if (! this->hasValue_)
-        {
-            details::construct<error_type>(&error_, other.error_);
-        }
-    }
+    Result(Result const& other) : result_{other.result_} {}
 
     /**
      * @brief Move-construct a new @c Result from another instance.
@@ -826,27 +712,15 @@ template<typename E> class Result<void, E> final
      */
     Result(Result&& other) noexcept(
       std::is_nothrow_move_constructible_v<error_type>)
-    {
-        this->hasValue_ = other.hasValue_;
-        if (! this->hasValue_)
-        {
-            details::construct<error_type>(&error_, other.error_);
-        }
-    }
+      : result_{std::move(other.result_)}
+    {}
 
     /**
      * @brief Destructor.
      *
      * @req {SWS_CORE_00827}
      */
-    // FIXME: This destructor is trivial if std::is_trivially_destructible<E>::value is true.
-    ~Result()
-    {
-        if (! hasValue_)
-        {
-            error_.~error_type();
-        }
-    }
+    ~Result() = default;
 
     /**
      * @brief Build a new @c Result with @c void as value.
@@ -913,23 +787,7 @@ template<typename E> class Result<void, E> final
      */
     Result& operator=(Result const& other)
     {
-        if (this != &other)
-        {
-            if (! hasValue_ && ! other.hasValue_)
-            {
-                this->error_ = other.error_;
-            }
-            else if (hasValue_ && ! other.hasValue_)
-            {
-                this->hasValue_ = false;
-                details::construct<error_type>(&error_, other.error_);
-            }
-            else if (! hasValue_ && other.hasValue_)
-            {
-                this->hasValue_ = true;
-                this->error_.~error_type();
-            }
-        }
+        this->result_ = other.result_;
         return *this;
     }
 
@@ -946,24 +804,7 @@ template<typename E> class Result<void, E> final
       std::is_nothrow_move_constructible_v<error_type>&&
         std::is_nothrow_move_assignable_v<error_type>)
     {
-        if (this != &other)
-        {
-            if (! hasValue_ && ! other.hasValue_)
-            {
-                this->error_ = std::move(other.error_);
-            }
-            else if (hasValue_ && ! other.hasValue_)
-            {
-                this->hasValue_ = false;
-                details::construct<error_type>(&error_,
-                                               std::move(other.error_));
-            }
-            else if (! hasValue_ && other.hasValue_)
-            {
-                this->hasValue_ = true;
-                this->error_.~error_type();
-            }
-        }
+        this->result_ = std::move(other.result_);
         return *this;
     }
 
@@ -978,12 +819,7 @@ template<typename E> class Result<void, E> final
      */
     template<typename... Args> void EmplaceValue(Args&&...) noexcept
     {
-        if (! hasValue_)
-        {
-            error_.~error_type();
-            hasValue_ = true;
-        }
-
+        result_.template emplace<no_error_type>(no_error_type());
         return;
     }
 
@@ -998,16 +834,8 @@ template<typename E> class Result<void, E> final
      */
     template<typename... Args> void EmplaceError(Args&&... args)
     {
-        if (! hasValue_)
-        {
-            error_ = error_type(std::forward<Args>(args)...);
-        }
-        else
-        {
-            hasValue_ = false;
-            details::construct<error_type>(&error_,
-                                           std::forward<Args>(args)...);
-        }
+        result_.template emplace<error_type>(
+          error_type(std::forward<Args>(args)...));
     }
 
     /**
@@ -1021,20 +849,7 @@ template<typename E> class Result<void, E> final
       std::is_nothrow_move_constructible_v<error_type>&&
         std::is_nothrow_move_assignable_v<error_type>)
     {
-        if (! hasValue_ && ! other.hasValue_)
-        {
-            std::swap(this->error_, other.error_);
-        }
-        else if (hasValue_ && ! other.hasValue_)
-        {
-            auto tempOther = other;
-            other          = *this;
-            *this          = tempOther;
-        }
-        else if (! hasValue_ && other.hasValue_)
-        {
-            other.Swap(*this);
-        }
+        this->result_.swap(other.result_);
     }
 
     /**
@@ -1044,7 +859,10 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00851}
      */
-    bool HasValue() const noexcept { return hasValue_; }
+    bool HasValue() const noexcept
+    {
+        return ! std::holds_alternative<error_type>(result_);
+    }
 
     /**
      * @brief Check whether @c *this contains a value.
@@ -1053,7 +871,10 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00852}
      */
-    explicit operator bool() const noexcept { return hasValue_; }
+    explicit operator bool() const noexcept
+    {
+        return ! std::holds_alternative<error_type>(result_);
+    }
 
     /**
      * @brief Do nothing.
@@ -1084,7 +905,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00857}
      */
-    error_type const& Error() const& { return error_; }
+    error_type const& Error() const& { return std::get<error_type>(result_); }
 
     /**
      * @brief Access the contained error.
@@ -1095,7 +916,7 @@ template<typename E> class Result<void, E> final
      *
      * @req {SWS_CORE_00858}
      */
-    error_type&& Error() && { return std::move(error_); }
+    error_type&& Error() && { return std::move(std::get<error_type>(result_)); }
 
     /**
      * @brief Do nothing.
@@ -1122,9 +943,9 @@ template<typename E> class Result<void, E> final
      */
     template<typename G> error_type ErrorOr(G&& defaultError) const
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            return error_;
+            return std::get<error_type>(result_);
         }
 
         return static_cast<error_type>(defaultError);
@@ -1145,12 +966,14 @@ template<typename E> class Result<void, E> final
      */
     template<typename G> bool CheckError(G&& error) const
     {
-        if (hasValue_)
+        if (HasValue())
         {
             return false;
         }
 
-        return static_cast<error_type>(error) == error_ ? true : false;
+        return static_cast<error_type>(error) == std::get<error_type>(result_)
+                 ? true
+                 : false;
     }
 
 #if __cpp_exceptions == 199711
@@ -1165,9 +988,9 @@ template<typename E> class Result<void, E> final
      */
     void ValueOrThrow() const noexcept(false)
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            error_.ThrowAsException();
+            std::get<error_type>(result_).ThrowAsException();
         }
         return;
     }
@@ -1187,9 +1010,9 @@ template<typename E> class Result<void, E> final
      */
     template<typename F> void Resolve(F&& f) const
     {
-        if (! hasValue_)
+        if (! HasValue())
         {
-            return f(error_);
+            return f(std::get<error_type>(result_));
         }
         return;
     }

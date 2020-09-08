@@ -235,8 +235,8 @@ TEST_CASE("EmplaceValue method", "[SWS_CORE], [SWS_CORE_00743]")
     auto resultWithError1 =
       ara::core::Result<ValueTest, ErrorTest>::FromError(ErrorTest(10));
     CHECK(! resultWithError1.HasValue());
-    CHECK(resultWithError1.Value().getIntVal() == 10);
-    CHECK(resultWithError1.Value().getStringVal() == "Init");
+    CHECK(resultWithError1.Error().getIntVal() == 10);
+    CHECK(resultWithError1.Error().getStringVal() == "Init");
 
     resultWithError1.EmplaceValue(20, message);
     CHECK(resultWithError1.HasValue());
