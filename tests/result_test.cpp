@@ -55,11 +55,11 @@ struct ValueTest
 TEST_CASE("Constructs and destructs a Result based on value",
           "[SWS_CORE], [SWS_CORE_00721], [SWS_CORE_00722], [SWS_CORE_00731]")
 {
-    ValueTest                    value(10);
-    ara::core::Result<ValueTest> resultLValue(value);
+    ValueTest                               value(10);
+    ara::core::Result<ValueTest, ErrorTest> resultLValue(value);
     CHECK(resultLValue.HasValue());
 
-    ara::core::Result<ValueTest> resultRValue(ValueTest(10));
+    ara::core::Result<ValueTest, ErrorTest> resultRValue(ValueTest(10));
     CHECK(resultRValue.HasValue());
 }
 
@@ -77,13 +77,14 @@ TEST_CASE("Constructs and destructs a Result based on error",
 TEST_CASE("Copy and Move constructs a Result based on other instance",
           "[SWS_CORE], [SWS_CORE_00725], [SWS_CORE_00726]")
 {
-    ValueTest                    value(10);
-    ara::core::Result<ValueTest> resultBasedOnValue(value);
+    ValueTest                               value(10);
+    ara::core::Result<ValueTest, ErrorTest> resultBasedOnValue(value);
 
-    ara::core::Result<ValueTest> copiedResultBasedOnValue(resultBasedOnValue);
+    ara::core::Result<ValueTest, ErrorTest> copiedResultBasedOnValue(
+      resultBasedOnValue);
     CHECK(copiedResultBasedOnValue.HasValue());
 
-    ara::core::Result<ValueTest> movedResultBasedOnValue(
+    ara::core::Result<ValueTest, ErrorTest> movedResultBasedOnValue(
       std::move(resultBasedOnValue));
     CHECK(movedResultBasedOnValue.HasValue());
 
@@ -103,11 +104,13 @@ TEST_CASE("Constuct a Result by FromValue method",
           "[SWS_CORE], [SWS_CORE_00731], [SWS_CORE_00732], [SWS_CORE_00733]")
 {
     const ValueTest value(10);
-    auto resultLValue = ara::core::Result<ValueTest>::FromValue(value);
-    auto resultRValue = ara::core::Result<ValueTest>::FromValue(ValueTest(15));
+    auto            resultLValue =
+      ara::core::Result<ValueTest, ErrorTest>::FromValue(value);
+    auto resultRValue =
+      ara::core::Result<ValueTest, ErrorTest>::FromValue(ValueTest(15));
     std::string testString = "Test string";
     auto        resultFromArguments =
-      ara::core::Result<ValueTest>::FromValue(10, testString);
+      ara::core::Result<ValueTest, ErrorTest>::FromValue(10, testString);
 
     CHECK(resultLValue.HasValue());
     CHECK(resultRValue.HasValue());
@@ -504,7 +507,7 @@ TEST_CASE(
   "Specialization for value_type=void: Constructs and destructs a Result with void value",
   "[SWS_CORE], [SWS_CORE_00801], [SWS_CORE_00825]")
 {
-    ara::core::Result<void> result;
+    ara::core::Result<void, ErrorTest> result;
 
     CHECK(result.HasValue());
 }
@@ -525,12 +528,13 @@ TEST_CASE(
   "Specialization for value_type=void: Copy and Move constructs a Result based on other instance",
   "[SWS_CORE], [SWS_CORE_00785], [SWS_CORE_00826]")
 {
-    ara::core::Result<void> resultBasedOnValue;
+    ara::core::Result<void, ErrorTest> resultBasedOnValue;
 
-    ara::core::Result<void> copiedResultBasedOnValue(resultBasedOnValue);
+    ara::core::Result<void, ErrorTest> copiedResultBasedOnValue(
+      resultBasedOnValue);
     CHECK(copiedResultBasedOnValue.HasValue());
 
-    ara::core::Result<void> movedResultBasedOnValue(
+    ara::core::Result<void, ErrorTest> movedResultBasedOnValue(
       std::move(resultBasedOnValue));
     CHECK(movedResultBasedOnValue.HasValue());
 
@@ -550,7 +554,7 @@ TEST_CASE(
   "Specialization for value_type=void: Constuct a Result by FromValue method",
   "[SWS_CORE], [SWS_CORE_00831]")
 {
-    auto value = ara::core::Result<void>::FromValue();
+    auto value = ara::core::Result<void, ErrorTest>::FromValue();
     CHECK(value.HasValue());
 }
 
