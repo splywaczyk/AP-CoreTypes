@@ -49,12 +49,6 @@ template<typename T> struct is_specialization_of_result<
 
 template<bool Condition, typename T = void> using requires_ =
   typename std::enable_if<Condition, T>::type;
-
-template<typename Item, typename... Args> void
-construct(Item* place, Args&&... args)
-{
-    ::new (place) Item(std::forward<Args>(args)...);
-}
 }  // namespace details
 
 /**
@@ -103,7 +97,7 @@ template<typename T, typename E = ErrorCode> class Result final
      *
      * @req {SWS_CORE_00722}
      */
-    Result(value_type const&& t) : result_{t} {}
+    Result(value_type&& t) : result_{t} {}
 
     /**
      * @brief Construct a new @c Result from the specified error (given as
